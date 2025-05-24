@@ -210,3 +210,70 @@ canvas {
     z-index: 998;
 }
 
+#userInput {
+    width: 100%;
+    font-size: 16px;
+    padding: 8px 12px;
+    border: 2px solid white;
+    border-radius: 4px;
+    background-color: #111;
+    color: #0f0;
+    font-family: monospace, monospace;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+    caret-color: transparent;
+}
+
+#userInput:focus {
+    border-color: #6f6;
+    background-color: #222;
+}
+
+#userInput {
+    caret-color: transparent;
+    position: relative; 
+}
+
+#inputContainer {
+    margin-top: 10px;
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+}
+
+#customCaret {
+    position: absolute;
+    top: 12px;
+    width: 10px;
+    height: 18px;
+    background-color: #0f0;
+    pointer-events: none;
+    display: none;
+    animation: blinkCaret 1s steps(2, start) infinite;
+}
+
+@keyframes blinkCaret {
+
+    0%,
+    50% {
+        opacity: 1;
+    }
+
+    50.1%,
+    100% {
+        opacity: 0;
+    }
+}
+
+#inputMirror {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    white-space: pre;
+    visibility: hidden;
+    font-family: monospace;
+    font-size: 16px;
+    padding: 8px 12px;
+    border: 2px solid transparent;
+}

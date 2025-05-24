@@ -18,126 +18,153 @@ import {
   setLanguageSelected,
   setLanguage,
 } from "./constantsAndGlobalVars.js";
-import { setGameState, startGame, gameLoop } from './game.js';
+import { setGameState, startGame, gameLoop, typeLines } from "./game.js";
 import { initLocalization, localize } from './localization.js';
 import { loadGameOption, loadGame, saveGame, copySaveStringToClipBoard } from './saveLoadGame.js';
 
+document.addEventListener("DOMContentLoaded", async () => {
+  const input = document.getElementById("userInput");
+  const caret = document.getElementById("customCaret");
+  const mirror = document.getElementById("inputMirror");
 
-document.addEventListener('DOMContentLoaded', async () => {
-    setElements();
-    // Event listeners
-    getElements().newGameMenuButton.addEventListener('click', () => {
-        setBeginGameStatus(true);
-        if (!getGameInProgress()) {
-            setGameInProgress(true);
-        }
-        disableActivateButton(getElements().resumeGameMenuButton, 'active', 'btn-primary');
-        disableActivateButton(getElements().saveGameButton, 'active', 'btn-primary');
-        setGameState(getGameVisiblePaused());
-        startGame();
+  setElements();
+
+  // --- Game/UI event listeners (unchanged) ---
+  getElements().newGameMenuButton.addEventListener("click", () => {
+    setBeginGameStatus(true);
+    if (!getGameInProgress()) {
+      setGameInProgress(true);
+      focusInputField();
+    }
+    disableActivateButton(
+      getElements().resumeGameMenuButton,
+      "active",
+      "btn-primary"
+    );
+    disableActivateButton(
+      getElements().saveGameButton,
+      "active",
+      "btn-primary"
+    );
+    setGameState(getGameVisiblePaused());
+    startGame();
+  });
+
+  ["en", "es", "de", "it", "fr"].forEach((lang) => {
+    getElements()[
+      `btn${lang.charAt(0).toUpperCase() + lang.slice(1)}`
+    ].addEventListener("click", () => {
+      handleLanguageChange(lang);
+      setGameState(getMenuState());
     });
+  });
 
-    getElements().pauseResumeGameButton.addEventListener('click', () => {
-        if (gameState === getGameVisiblePaused()) {
-            if (getBeginGameStatus()) {
-                setBeginGameStatus(false);
-            }
-            setGameState(getGameVisibleActive());
-        } else if (gameState === getGameVisibleActive()) {
-            setGameState(getGameVisiblePaused());
-        }
-    });
+  getElements().saveGameButton.addEventListener("click", () => {
+    getElements().overlay.classList.remove("d-none");
+    saveGame(true);
+  });
 
-    getElements().resumeGameMenuButton.addEventListener('click', () => {
-        if (gameState === getMenuState()) {
-            setGameState(getGameVisiblePaused());
-        }
-        gameLoop();
-    });
+  getElements().loadGameButton.addEventListener("click", () => {
+    getElements().overlay.classList.remove("d-none");
+    loadGameOption();
+  });
 
-    getElements().returnToMenuButton.addEventListener('click', () => {
+  getElements().copyButtonSavePopup.addEventListener(
+    "click",
+    copySaveStringToClipBoard
+  );
+
+  getElements().closeButtonSavePopup.addEventListener("click", () => {
+    getElements().saveLoadPopup.classList.add("d-none");
+    getElements().overlay.classList.add("d-none");
+  });
+
+  getElements().loadStringButton.addEventListener("click", () => {
+    loadGame(true)
+      .then(() => {
+        setElements();
+        getElements().saveLoadPopup.classList.add("d-none");
+        document.getElementById("overlay").classList.add("d-none");
         setGameState(getMenuState());
-    });
+      })
+      .catch((error) => console.error("Error loading game:", error));
+  });
 
-    getElements().btnEnglish.addEventListener('click', () => {
-        handleLanguageChange('en');
-        setGameState(getMenuState());
-    });
+  getElements().canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
 
-    getElements().btnSpanish.addEventListener('click', () => {
-        handleLanguageChange('es');
-        setGameState(getMenuState());
-    });
+    const delta = Math.sign(event.deltaY);
+    const currentOffset = getCanvasLogScrollOffset();
 
-    getElements().btnGerman.addEventListener('click', () => {
-        handleLanguageChange('de');
-        setGameState(getMenuState());
-    });
+    const ctx = getElements().canvas.getContext("2d");
+    const lineHeight = 18;
+    const visibleLines = Math.floor(ctx.canvas.height / lineHeight);
+    const maxOffset = Math.max(0, canvasLogBuffer.length - visibleLines);
 
-    getElements().btnItalian.addEventListener('click', () => {
-        handleLanguageChange('it');
-        setGameState(getMenuState());
-    });
+    let newOffset = currentOffset - delta;
+    if (newOffset < 0) newOffset = 0;
+    if (newOffset > maxOffset) newOffset = maxOffset;
 
-    getElements().btnFrench.addEventListener('click', () => {
-        handleLanguageChange('fr');
-        setGameState(getMenuState());
-    });
+    setCanvasLogScrollOffset(newOffset);
+  });
 
-    getElements().saveGameButton.addEventListener('click', function () {
-        getElements().overlay.classList.remove('d-none');
-        saveGame(true);
-    });
-
-    getElements().loadGameButton.addEventListener('click', function () {
-        getElements().overlay.classList.remove('d-none');
-        loadGameOption();
-    });
-
-    getElements().copyButtonSavePopup.addEventListener('click', function () {
-        copySaveStringToClipBoard();
-    });
-
-    getElements().closeButtonSavePopup.addEventListener('click', function () {
-        getElements().saveLoadPopup.classList.add('d-none');
-        getElements().overlay.classList.add('d-none');
-    });
-
-    getElements().loadStringButton.addEventListener('click', function () {
-        loadGame(true)
-            .then(() => {
-                setElements();
-                getElements().saveLoadPopup.classList.add('d-none');
-                document.getElementById('overlay').classList.add('d-none');
-                setGameState(getMenuState());
-            })
-            .catch((error) => {
-                console.error('Error loading game:', error);
-            });
-    });
-
-    getElements().canvas.addEventListener("wheel", (event) => {
+  userInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
       event.preventDefault();
+      const inputText = userInput.value.trim();
+      if (inputText.length > 0) {
+        typeLines([`> ${inputText}`]); // Animate the input text
+        userInput.value = "";
+        setCanvasLogScrollOffset(0);
+      }
+    }
+  });
+  
 
-      const delta = Math.sign(event.deltaY);
-      const currentOffset = getCanvasLogScrollOffset();
+  mirror.style.font = window.getComputedStyle(input).font;
 
-      const ctx = getElements().canvas.getContext("2d");
-      const lineHeight = 18;
-      const visibleLines = Math.floor(ctx.canvas.height / lineHeight);
-      const maxOffset = Math.max(0, canvasLogBuffer.length - visibleLines);
+  function updateCaret() {
+    const caretIndex = input.selectionStart;
+    mirror.textContent = input.value.substring(0, caretIndex);
+    const mirrorWidth = mirror.offsetWidth - 12;
+    caret.style.left = `${mirrorWidth}px`;
+    caret.style.top = `${input.offsetTop + 13}px`;
+    caret.style.display = "block";
+  }
 
-      let newOffset = currentOffset - delta;
-      if (newOffset < 0) newOffset = 0;
-      if (newOffset > maxOffset) newOffset = maxOffset;
+  ["input", "keydown", "click", "focus"].forEach((evt) => {
+    input.addEventListener(evt, updateCaret);
+  });
 
-      setCanvasLogScrollOffset(newOffset);
-    });
-      
+  input.addEventListener("blur", () => {
+    caret.style.display = "none";
+  });
 
-    setGameState(getMenuState());
-    handleLanguageChange(getLanguageSelected());
+  // Optional: blinking
+  setInterval(updateCaret, 500);
+
+  input.focus();
+  setGameState(getMenuState());
+  handleLanguageChange(getLanguageSelected());
 });
+  
+
+function focusInputField() {
+  const input = document.getElementById("userInput");
+  if (input) {
+    // Delay ensures DOM is ready and visible
+    setTimeout(() => {
+      input.focus();
+    }, 0);
+  }
+}
+
+export function outputToCanvas(text) {
+  canvasLogBuffer.push(text);
+  if (canvasLogBuffer.length > maxLogLines) {
+    canvasLogBuffer.shift();
+  }
+}  
 
 export function renderHTMLString(ctx, x, y, html) {
   const tagRegex = /<\/?[^>]+>/g;
@@ -177,7 +204,6 @@ export function renderHTMLString(ctx, x, y, html) {
 }
 
 async function setElementsLanguageText() {
-    // Localization text
     getElements().menuTitle.innerHTML = `<h2>${localize('menuTitle', getLanguage())}</h2>`;
     getElements().newGameMenuButton.innerHTML = `${localize('newGame', getLanguage())}`;
     getElements().resumeGameMenuButton.innerHTML = `${localize('resumeGame', getLanguage())}`;
@@ -209,12 +235,4 @@ export function disableActivateButton(button, action, activeClass) {
             break;
     }
 }
-
-export function outputToCanvas(text) {
-  canvasLogBuffer.push(text);
-  if (canvasLogBuffer.length > maxLogLines) {
-    canvasLogBuffer.shift(); // Remove oldest line
-  }
-}
-
 

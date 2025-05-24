@@ -51,15 +51,16 @@
 
     <!-- Canvas Container -->
     <div id="canvasContainer" class="d-none">
-        <!-- Button Row -->
-        <div id="buttonRow" class="d-flex justify-content-center mb-3">
-            <button id="returnToMenu" class="btn btn-secondary mr-2">Return to Menu</button>
-            <button id="resumeGame" class="btn btn-primary">Pause</button>
-        </div>
         <!-- Canvas Row -->
         <div class="d-flex justify-content-center">
             <canvas id="canvas"></canvas>
         </div>
+        <div id="inputContainer">
+            <input type="text" id="userInput" autocomplete="off" />
+            <div id="customCaret"></div>   
+            <div id="inputMirror"></div>
+        </div>
+          
     </div>
 
     <!-- Overlay -->

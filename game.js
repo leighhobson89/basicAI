@@ -37,17 +37,26 @@ export function startGame() {
     const container = getElements().canvasContainer;
 
     function updateCanvasSize() {
-        const canvasWidth = container.clientWidth * 0.8;
-        const canvasHeight = container.clientHeight * 0.8;
+      const containerWidth = container.clientWidth;
+      const canvasWidth = containerWidth * 0.8;
+      const canvasHeight = container.clientHeight * 0.7;
 
-        getElements().canvas.style.width = `${canvasWidth}px`;
-        getElements().canvas.style.height = `${canvasHeight}px`;
+      const canvas = getElements().canvas;
+      const input = getElements().inputContainer;
 
-        getElements().canvas.width = canvasWidth;
-        getElements().canvas.height = canvasHeight;
-        
-        ctx.scale(1, 1);
+      // Resize canvas
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      input.style.width = `${canvasWidth}px`;
+      input.style.marginTop = "5px";
+      input.style.display = "block";
+
+      ctx.scale(1, 1);
     }
+      
 
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
@@ -81,10 +90,12 @@ export function gameLoop(timestamp) {
 
 function drawCanvasLog(ctx, now) {
   const lineHeight = 18;
+  const bottomMargin = 30;
   const x = 10;
+  const usableHeight = ctx.canvas.height - bottomMargin;
   const yStart = 30;
+  const visibleLines = Math.floor(usableHeight / lineHeight);
   const scrollOffset = getCanvasLogScrollOffset();
-  const visibleLines = Math.floor(ctx.canvas.height / lineHeight);
 
   ctx.font = "16px monospace";
   ctx.fillStyle = "#0f0";
@@ -100,7 +111,6 @@ function drawCanvasLog(ctx, now) {
     renderHTMLString(ctx, x, y, canvasLogBuffer[i]);
   }
 
-  // Cursor handling
   if (canvasLogBuffer.length > 0) {
     if (!getIsTyping()) {
       if (!getLastCursorToggleTime()) setLastCursorToggleTime(now);
@@ -129,10 +139,8 @@ function drawCanvasLog(ctx, now) {
       }
     }
   }
-}
+}  
   
-
-// Helper function to strip HTML tags for measuring text width correctly
 function stripHtml(html) {
   const div = document.createElement("div");
   div.innerHTML = html;
@@ -180,7 +188,6 @@ function typeCharacter() {
     typeNextLine();
   }
 }
-  
 
 export function setGameState(newState) {
     console.log("Setting game state to " + newState);
@@ -190,16 +197,10 @@ export function setGameState(newState) {
         case getMenuState():
             getElements().menu.classList.remove('d-none');
             getElements().menu.classList.add('d-flex');
-            getElements().buttonRow.classList.add('d-none');
-            getElements().buttonRow.classList.remove('d-flex');
             getElements().canvasContainer.classList.remove('d-flex');
             getElements().canvasContainer.classList.add('d-none');
-            getElements().returnToMenuButton.classList.remove('d-flex');
-            getElements().returnToMenuButton.classList.add('d-none');
-            getElements().pauseResumeGameButton.classList.remove('d-flex');
-            getElements().pauseResumeGameButton.classList.add('d-none');
             
-            const languageButtons = [getElements().btnEnglish, getElements().btnSpanish, getElements().btnGerman, getElements().btnItalian, getElements().btnFrench];
+            const languageButtons = [getElements().btnEn, getElements().btnEs, getElements().btnDe, getElements().btnIt, getElements().btnFr];
             languageButtons.forEach(button => {
                 button.classList.remove('active');
             });
@@ -209,23 +210,23 @@ export function setGameState(newState) {
             switch (currentLanguage) {
                 case 'en':
                     console.log("Setting Active state on English");
-                    getElements().btnEnglish.classList.add('active');
+                    getElements().btnEn.classList.add('active');
                     break;
                 case 'es':
                     console.log("Setting Active state on Spanish");
-                    getElements().btnSpanish.classList.add('active');
+                    getElements().btnEs.classList.add('active');
                     break;
                 case 'de':
                     console.log("Setting Active state on German");
-                    getElements().btnGerman.classList.add('active');
+                    getElements().btnDe.classList.add('active');
                     break;
                 case 'it':
                     console.log("Setting Active state on Italian");
-                    getElements().btnItalian.classList.add('active');
+                    getElements().btnIt.classList.add('active');
                     break;
                 case 'fr':
                     console.log("Setting Active state on French");
-                    getElements().btnFrench.classList.add('active');
+                    getElements().btnFr.classList.add('active');
                     break;
             }
 
@@ -237,35 +238,14 @@ export function setGameState(newState) {
         case getGameVisiblePaused():
             getElements().menu.classList.remove('d-flex');
             getElements().menu.classList.add('d-none');
-            getElements().buttonRow.classList.remove('d-none');
-            getElements().buttonRow.classList.add('d-flex');
             getElements().canvasContainer.classList.remove('d-none');
             getElements().canvasContainer.classList.add('d-flex');
-            getElements().returnToMenuButton.classList.remove('d-none');
-            getElements().returnToMenuButton.classList.add('d-flex');
-            getElements().pauseResumeGameButton.classList.remove('d-none');
-            getElements().pauseResumeGameButton.classList.add('d-flex');
-            if (getBeginGameStatus()) {
-                getElements().pauseResumeGameButton.innerHTML = `${localize('begin', getLanguage())}`;
-            } else {
-                getElements().pauseResumeGameButton.innerHTML = `${localize('resumeGame', getLanguage())}`;
-            }
-            
-            getElements().returnToMenuButton.innerHTML = `${localize('menuTitle', getLanguage())}`;
             break;
         case getGameVisibleActive():
             getElements().menu.classList.remove('d-flex');
             getElements().menu.classList.add('d-none');
-            getElements().buttonRow.classList.remove('d-none');
-            getElements().buttonRow.classList.add('d-flex');
             getElements().canvasContainer.classList.remove('d-none');
             getElements().canvasContainer.classList.add('d-flex');
-            getElements().returnToMenuButton.classList.remove('d-none');
-            getElements().returnToMenuButton.classList.add('d-flex');
-            getElements().pauseResumeGameButton.classList.remove('d-none');
-            getElements().pauseResumeGameButton.classList.add('d-flex');
-            getElements().pauseResumeGameButton.innerHTML = `${localize('pause', getLanguage())}`;
-            getElements().returnToMenuButton.innerHTML = `${localize('menuTitle', getLanguage())}`;
             break;
     }
 }
