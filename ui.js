@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setBeginGameStatus(true);
     if (!getGameInProgress()) {
       setGameInProgress(true);
+      document.getElementById('titleContainer').style.display = 'flex';
       focusInputField();
     }
     disableActivateButton(
@@ -110,17 +111,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   userInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-      event.preventDefault();
       const inputText = userInput.value.trim();
-      if (inputText.length > 0) {
-        typeLines([`> ${inputText}`]);
-
-        const aiResponse = `You said: ${inputText}`;
-        typeLines([aiResponse]);
-
-        userInput.value = "";
-        setCanvasLogScrollOffset(0);
-      }
+      handleUserInput(inputText);
+      userInput.value = "";
+      event.preventDefault();
     }
   });  
 
@@ -237,4 +231,21 @@ export function disableActivateButton(button, action, activeClass) {
             button.classList.add('disabled');
             break;
     }
+}
+
+async function sendUserInputToServer(userInput) {
+  const response = await fetch("http://localhost:3000/api/gemma3", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: userInput }),
+  });
+  if (!response.ok) throw new Error("Network response was not ok");
+  const data = await response.json();
+  return data.response;
+}
+
+async function handleUserInput(userInput) {
+  canvasLogBuffer.push(`> ${userInput}`);
+  const aiResponse = await sendUserInputToServer(userInput);
+  typeLines([aiResponse]);
 }

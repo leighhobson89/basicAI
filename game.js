@@ -149,7 +149,16 @@ function stripHtml(html) {
 
 export function typeLines(lines) {
   const queue = getTypingQueue();
-  queue.push(...lines);
+  const ctx = getElements().canvas.getContext("2d");
+  ctx.font = "16px monospace";
+
+  const maxWidth = getElements().canvas.width - 20;
+
+  lines.forEach((line) => {
+    const wrappedLines = wrapText(ctx, line, maxWidth);
+    queue.push(...wrappedLines);
+  });
+
   setTypingQueue(queue);
 
   if (!getIsTyping()) {
@@ -157,6 +166,7 @@ export function typeLines(lines) {
     typeNextLine();
   }
 }
+
 
 function typeNextLine() {
   const queue = getTypingQueue();
@@ -249,3 +259,36 @@ export function setGameState(newState) {
             break;
     }
 }
+
+async function queryGemma3(prompt) {
+  const response = await fetch("/api/gemma3", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!response.ok) throw new Error("API error");
+  const data = await response.json();
+  return data.response;
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(" ");
+  let lines = [];
+  let line = "";
+
+  for (const word of words) {
+    const testLine = line + word + " ";
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    if (testWidth > maxWidth && line !== "") {
+      lines.push(line.trim());
+      line = word + " ";
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) lines.push(line.trim());
+  return lines;
+}
+
+

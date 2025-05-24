@@ -4,6 +4,7 @@ body {
     font-family: Arial, sans-serif;
     background-color: black;
     color: white;
+    overflow: hidden;
 }
 
 #menu {
@@ -276,4 +277,32 @@ canvas {
     font-size: 16px;
     padding: 8px 12px;
     border: 2px solid transparent;
+}
+
+#titleContainer {
+    display:none;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Georgia', serif;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #4a90e2;
+    text-shadow: 2px 2px 5px rgba(74, 144, 226, 0.7);
+    user-select: none;
+    letter-spacing: 0.15em;
+    animation: glow 2s ease-in-out infinite alternate;
+    margin: 0;
+    z-index: 1000;
+}
+
+@keyframes glow {
+    from {
+        text-shadow: 0 0 5px #4a90e2, 0 0 10px #4a90e2;
+    }
+
+    to {
+        text-shadow: 0 0 20px #1a5dcc, 0 0 30px #1a5dcc;
+    }
 }
