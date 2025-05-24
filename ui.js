@@ -1,4 +1,23 @@
-import { gameState, getLanguageChangedFlag, setLanguageChangedFlag, getLanguage, setElements, getElements, setBeginGameStatus, getGameInProgress, setGameInProgress, getGameVisiblePaused, getBeginGameStatus, getGameVisibleActive, getMenuState, getLanguageSelected, setLanguageSelected, setLanguage } from './constantsAndGlobalVars.js';
+import {
+  setCanvasLogScrollOffset,
+  getCanvasLogScrollOffset,
+  canvasLogBuffer,
+  maxLogLines,
+  gameState,
+  getLanguage,
+  setElements,
+  getElements,
+  setBeginGameStatus,
+  getGameInProgress,
+  setGameInProgress,
+  getGameVisiblePaused,
+  getBeginGameStatus,
+  getGameVisibleActive,
+  getMenuState,
+  getLanguageSelected,
+  setLanguageSelected,
+  setLanguage,
+} from "./constantsAndGlobalVars.js";
 import { setGameState, startGame, gameLoop } from './game.js';
 import { initLocalization, localize } from './localization.js';
 import { loadGameOption, loadGame, saveGame, copySaveStringToClipBoard } from './saveLoadGame.js';
@@ -96,9 +115,66 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error('Error loading game:', error);
             });
     });
+
+    getElements().canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+
+      const delta = Math.sign(event.deltaY);
+      const currentOffset = getCanvasLogScrollOffset();
+
+      const ctx = getElements().canvas.getContext("2d");
+      const lineHeight = 18;
+      const visibleLines = Math.floor(ctx.canvas.height / lineHeight);
+      const maxOffset = Math.max(0, canvasLogBuffer.length - visibleLines);
+
+      let newOffset = currentOffset - delta;
+      if (newOffset < 0) newOffset = 0;
+      if (newOffset > maxOffset) newOffset = maxOffset;
+
+      setCanvasLogScrollOffset(newOffset);
+    });
+      
+
     setGameState(getMenuState());
     handleLanguageChange(getLanguageSelected());
 });
+
+export function renderHTMLString(ctx, x, y, html) {
+  const tagRegex = /<\/?[^>]+>/g;
+  const parts = html.split(tagRegex);
+  const tags = html.match(tagRegex) || [];
+
+  let currFont = "16px monospace";
+  let currStyle = { bold: false, italic: false, color: "#0f0" };
+  let tagIndex = 0;
+  let currX = x;
+
+  for (let i = 0; i < parts.length; i++) {
+    let text = parts[i];
+
+    ctx.font = `${currStyle.italic ? "italic " : ""}${
+      currStyle.bold ? "bold " : ""
+    }${currFont}`;
+    ctx.fillStyle = currStyle.color;
+
+    ctx.fillText(text, currX, y);
+    currX += ctx.measureText(text).width;
+
+    if (tagIndex < tags.length) {
+      const tag = tags[tagIndex++];
+      if (tag === "<b>") currStyle.bold = true;
+      else if (tag === "</b>") currStyle.bold = false;
+      else if (tag === "<i>") currStyle.italic = true;
+      else if (tag === "</i>") currStyle.italic = false;
+      else if (tag.startsWith("<span")) {
+        const colorMatch = tag.match(/color:\s*([^;"]+)/);
+        if (colorMatch) currStyle.color = colorMatch[1].trim();
+      } else if (tag === "</span>") {
+        currStyle.color = "#0f0";
+      }
+    }
+  }
+}
 
 async function setElementsLanguageText() {
     // Localization text
@@ -133,4 +209,12 @@ export function disableActivateButton(button, action, activeClass) {
             break;
     }
 }
+
+export function outputToCanvas(text) {
+  canvasLogBuffer.push(text);
+  if (canvasLogBuffer.length > maxLogLines) {
+    canvasLogBuffer.shift(); // Remove oldest line
+  }
+}
+
 

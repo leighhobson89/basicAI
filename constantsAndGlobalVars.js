@@ -15,21 +15,21 @@ export let gameState;
 export const MENU_STATE = 'menuState';
 export const GAME_VISIBLE_PAUSED = 'gameVisiblePaused';
 export const GAME_VISIBLE_ACTIVE = 'gameVisibleActive';
-export const NUMBER_OF_ENEMY_SQUARES = 10;
-export const INITIAL_SPEED_PLAYER = 4;
-export const INITIAL_SPEED_MOVING_ENEMY = 4;
-export const MAX_ATTEMPTS_TO_DRAW_ENEMIES = 1000;
-
-export const playerObject = {
-    x: 100,
-    y: 100,
-    width: 50,
-    height: 50,
-    dx: getInitialSpeedPlayer(),
-    dy: getInitialSpeedPlayer()
-};
 
 //GLOBAL VARIABLES
+export const canvasLogBuffer = [];
+export const maxLogLines = 100;
+export let canvasLogScrollOffset = 0;
+let typingQueue = [];
+let currentLine = "";
+let currentCharIndex = 0;
+let typingSpeed = 20;
+let isTyping = false;
+let cursorVisible = true;
+let lastCursorToggleTime = 0;
+const cursorFlashInterval = 500; // ms
+const cursorWidth = 10;
+const cursorHeight = 18;
 
 //FLAGS
 let audioMuted;
@@ -65,12 +65,9 @@ export function setElements() {
         btnItalian: document.getElementById('btnItalian'),
         copyButtonSavePopup: document.getElementById('copyButtonSavePopup'),
         closeButtonSavePopup: document.getElementById('closeButtonSavePopup'),
-        overlay: document.getElementById('overlay')
+        overlay: document.getElementById('overlay'),
+        canvas: document.getElementById('canvas')
     };
-}
-
-export function getPlayerObject() {
-    return playerObject;
 }
 
 export function setGameStateVariable(value) {
@@ -174,22 +171,6 @@ export function getGameVisibleActive() {
     return GAME_VISIBLE_ACTIVE;
 }
 
-export function getNumberOfEnemySquares() {
-    return NUMBER_OF_ENEMY_SQUARES;
-}
-
-export function getInitialSpeedPlayer() {
-    return INITIAL_SPEED_PLAYER;
-}
-
-export function getInitialSpeedMovingEnemy() {
-    return INITIAL_SPEED_MOVING_ENEMY;
-}
-
-export function getMaxAttemptsToDrawEnemies() {
-    return MAX_ATTEMPTS_TO_DRAW_ENEMIES;
-}
-
 export function getLanguageSelected() {
     return languageSelected;
 }
@@ -214,3 +195,72 @@ export function setGameInProgress(value) {
     gameInProgress = value;
 }
 
+export function setCanvasLogScrollOffset(offset) {
+  canvasLogScrollOffset = offset;
+}
+
+export function getCanvasLogScrollOffset() {
+  return canvasLogScrollOffset;
+}
+
+export function getTypingQueue() {
+    return typingQueue;
+  }
+  export function setTypingQueue(newQueue) {
+    typingQueue = newQueue;
+  }
+  
+  export function getCurrentLine() {
+    return currentLine;
+  }
+  export function setCurrentLine(newLine) {
+    currentLine = newLine;
+  }
+
+  export function getCurrentCharIndex() {
+    return currentCharIndex;
+  }
+  export function setCurrentCharIndex(newIndex) {
+    currentCharIndex = newIndex;
+  }
+
+  export function getTypingSpeed() {
+    return typingSpeed;
+  }
+  export function setTypingSpeed(newSpeed) {
+    typingSpeed = newSpeed;
+  }
+
+  export function getIsTyping() {
+    return isTyping;
+  }
+  export function setIsTyping(newStatus) {
+    isTyping = newStatus;
+  }
+  
+  export function getCursorVisible() {
+    return cursorVisible;
+  }
+  export function setCursorVisible(newVisible) {
+    cursorVisible = newVisible;
+  }
+  
+  export function getLastCursorToggleTime() {
+    return lastCursorToggleTime;
+  }
+  export function setLastCursorToggleTime(newTime) {
+    lastCursorToggleTime = newTime;
+  }
+
+  export function getCursorFlashInterval() {
+    return cursorFlashInterval;
+  }
+
+  export function getCursorWidth() {
+    return cursorWidth;
+  }
+
+  export function getCursorHeight() {
+    return cursorHeight;
+  }
+  

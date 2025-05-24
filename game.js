@@ -1,46 +1,36 @@
 import { localize } from './localization.js';
-import { getInitialSpeedMovingEnemy, setGameStateVariable, getBeginGameStatus, getMaxAttemptsToDrawEnemies, getPlayerObject, getMenuState, getGameVisiblePaused, getGameVisibleActive, getNumberOfEnemySquares, getElements, getLanguage, getGameInProgress, gameState } from './constantsAndGlobalVars.js';
-
-let playerObject = getPlayerObject();
-let movingEnemy = {};
-
-const enemySquares = [];
+import {
+  getCanvasLogScrollOffset,
+  canvasLogBuffer,
+  setGameStateVariable,
+  getBeginGameStatus,
+  getMenuState,
+  getGameVisiblePaused,
+  getGameVisibleActive,
+  getElements,
+  getLanguage,
+  getGameInProgress,
+  gameState,
+  getTypingQueue,
+  setTypingQueue,
+  getCurrentLine,
+  setCurrentLine,
+  getCurrentCharIndex,
+  setCurrentCharIndex,
+  getTypingSpeed,
+  getIsTyping,
+  setIsTyping,
+  getCursorVisible,
+  setCursorVisible,
+  getLastCursorToggleTime,
+  setLastCursorToggleTime,
+  getCursorFlashInterval,
+  getCursorWidth,
+  getCursorHeight,
+} from "./constantsAndGlobalVars.js";
+import { outputToCanvas, renderHTMLString } from "./ui.js";
 
 //--------------------------------------------------------------------------------------------------------
-
-function initializeEnemySquares() {
-    enemySquares.length = 0;
-    let attempts = 0;
-
-    while (enemySquares.length < getNumberOfEnemySquares() && attempts < getMaxAttemptsToDrawEnemies()) {
-        const newSquare = generateRandomSquare();
-
-        if (!enemySquares.some(square => checkCollision(newSquare, square)) &&
-            !checkCollision(newSquare, playerObject)) {
-            enemySquares.push(newSquare);
-        }
-
-        attempts++;
-    }
-
-    if (attempts >= getMaxAttemptsToDrawEnemies()) {
-        console.warn(`Could not place all ${getNumberOfEnemySquares()} squares. Only ${enemySquares.length} squares were placed due to overlap constraints.`);
-    }
-}
-
-function initializeMovingEnemy() {
-    let attempts = 0;
-
-    do {
-        movingEnemy = generateRandomCircle();
-        attempts++;
-    } while ((checkCollision(movingEnemy, playerObject) || enemySquares.some(square => checkCollision(movingEnemy, square))) &&
-             attempts < getMaxAttemptsToDrawEnemies());
-
-    if (attempts >= getMaxAttemptsToDrawEnemies()) {
-        console.warn('Could not place the moving enemy without overlapping the player or any enemy squares.');
-    }
-}
 
 export function startGame() {
     const ctx = getElements().canvas.getContext('2d');
@@ -62,139 +52,135 @@ export function startGame() {
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
 
-    initializeEnemySquares();
-    initializeMovingEnemy();
-
+    typeLines([
+      "Welcome to the canvas terminal!",
+      "System <b>ready</b> for <i>deployment</i>.",
+      'Error: <span style="color: red">Connection failed</span>',
+      'Info: <span style="color: yellow">Running diagnostics...</span>',
+    ]);
+    
     gameLoop();
 }
 
-export function gameLoop() {
-    if (getBeginGameStatus()) {
-        playerObject = getPlayerObject();
-    }
-    const ctx = getElements().canvas.getContext('2d');
-    if (gameState === getGameVisibleActive() || gameState === getGameVisiblePaused()) {
-        ctx.clearRect(0, 0, getElements().canvas.width, getElements().canvas.height);
-
-        if (gameState === getGameVisibleActive()) {
-            moveCircle(playerObject);
-
-            moveCircle(movingEnemy);
-
-            checkAllCollisions();
-        }
-
-        drawMovingObject(ctx, playerObject.x, playerObject.y, playerObject.width, playerObject.height, 'green');
-        drawMovingObject(ctx, movingEnemy.x, movingEnemy.y, movingEnemy.width, movingEnemy.height, 'red');
-
-        enemySquares.forEach(square => {
-            drawEnemySquare(ctx, square.x, square.y, square.width, square.height);
-        });
-
-        requestAnimationFrame(gameLoop);
-    }
-}
-
-function moveCircle(circle) {
-    circle.x += circle.dx;
-    circle.y += circle.dy;
-
-    if (circle.x < 0 || circle.x + circle.width > getElements().canvas.width) {
-        circle.dx = -circle.dx;
-    }
-    if (circle.y < 0 || circle.y + circle.height > getElements().canvas.height) {
-        circle.dy = -circle.dy;
-    }
-}
-
-function checkAllCollisions() {
-
-    enemySquares.forEach(square => {
-        if (checkCollision(playerObject, square)) {
-            handleCollisionBetweenEnemySquares(playerObject, square);
-        }
-    });
-
-    enemySquares.forEach(square => {
-        if (checkCollision(movingEnemy, square)) {
-            handleCollisionBetweenEnemySquares(movingEnemy, square);
-        }
-    });
-
-    if (checkCollision(playerObject, movingEnemy)) {
-        handleCollisionBetweenEnemySquares(playerObject, movingEnemy);
-        handleCollisionBetweenEnemySquares(movingEnemy, playerObject);
-    }
-}
-
-function generateRandomSquare() {
-    const size = 20;
-    const x = Math.random() * (getElements().canvas.width - size);
-    const y = Math.random() * (getElements().canvas.height - size);
-    return { x, y, width: size, height: size };
-}
-
-function generateRandomCircle() {
-    const size = 50;
-    const x = Math.random() * (getElements().canvas.width - size);
-    const y = Math.random() * (getElements().canvas.height - size);
-    const speed = getInitialSpeedMovingEnemy();
-    const dx = (Math.random() < 0.5 ? -1 : 1) * speed;
-    const dy = (Math.random() < 0.5 ? -1 : 1) * speed;
-    return { x, y, width: size, height: size, dx, dy };
-}
-
-function drawMovingObject(ctx, x, y, width, height, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath(); 
-    ctx.arc(
-        x + width / 2, 
-        y + height / 2, 
-        width / 2,     
-        0,          
-        Math.PI * 2     
+export function gameLoop(timestamp) {
+  const ctx = getElements().canvas.getContext("2d");
+  if (
+    gameState === getGameVisibleActive() ||
+    gameState === getGameVisiblePaused()
+  ) {
+    ctx.clearRect(
+      0,
+      0,
+      getElements().canvas.width,
+      getElements().canvas.height
     );
-    ctx.closePath();   
-    ctx.fill();       
+    drawCanvasLog(ctx, timestamp);
+    requestAnimationFrame(gameLoop);
+  }
 }
 
-function drawEnemySquare(ctx, x, y, width, height) {
-    ctx.fillStyle = 'yellow';
-    ctx.fillRect(x, y, width, height);
-}
+function drawCanvasLog(ctx, now) {
+  const lineHeight = 18;
+  const x = 10;
+  const yStart = 30;
+  const scrollOffset = getCanvasLogScrollOffset();
+  const visibleLines = Math.floor(ctx.canvas.height / lineHeight);
 
-function checkCollision(rect1, rect2) {
-    return !(rect1.x + rect1.width < rect2.x ||
-             rect1.x > rect2.x + rect2.width ||
-             rect1.y + rect1.height < rect2.y ||
-             rect1.y > rect2.y + rect2.height);
-}
+  ctx.font = "16px monospace";
+  ctx.fillStyle = "#0f0";
 
-function handleCollisionBetweenEnemySquares(rectangle, square) {
-    const rectCenterX = rectangle.x + rectangle.width / 2;
-    const rectCenterY = rectangle.y + rectangle.height / 2;
-    const squareCenterX = square.x + square.width / 2;
-    const squareCenterY = square.y + square.height / 2;
+  const startLine = Math.max(
+    0,
+    canvasLogBuffer.length - visibleLines - scrollOffset
+  );
+  const endLine = Math.min(canvasLogBuffer.length, startLine + visibleLines);
 
-    const dx = Math.abs(rectCenterX - squareCenterX);
-    const dy = Math.abs(rectCenterY - squareCenterY);
-    const overlapX = rectangle.width / 2 + square.width / 2 - dx;
-    const overlapY = rectangle.height / 2 + square.height / 2 - dy;
+  for (let i = startLine, j = 0; i < endLine; i++, j++) {
+    const y = yStart + j * lineHeight;
+    renderHTMLString(ctx, x, y, canvasLogBuffer[i]);
+  }
 
-    if (overlapX >= overlapY) {
-        if (rectCenterY < squareCenterY) {
-            rectangle.dy = -Math.abs(rectangle.dy);
-        } else {
-            rectangle.dy = Math.abs(rectangle.dy);
-        }
+  // Cursor handling
+  if (canvasLogBuffer.length > 0) {
+    if (!getIsTyping()) {
+      if (!getLastCursorToggleTime()) setLastCursorToggleTime(now);
+      if (now - getLastCursorToggleTime() > getCursorFlashInterval()) {
+        setCursorVisible(!getCursorVisible());
+        setLastCursorToggleTime(now);
+      }
     } else {
-        if (rectCenterX < squareCenterX) {
-            rectangle.dx = -Math.abs(rectangle.dx);
-        } else {
-            rectangle.dx = Math.abs(rectangle.dx);
-        }
+      setCursorVisible(true);
     }
+
+    if (getCursorVisible()) {
+      const lastLineIndex = endLine - 1;
+      if (lastLineIndex >= 0 && lastLineIndex < canvasLogBuffer.length) {
+        const lastLine = canvasLogBuffer[lastLineIndex];
+        const y = yStart + (lastLineIndex - startLine) * lineHeight;
+        const widthBeforeCursor = ctx.measureText(stripHtml(lastLine)).width;
+
+        ctx.fillStyle = "#0f0";
+        ctx.fillRect(
+          x + widthBeforeCursor,
+          y - getCursorHeight() + 4,
+          getCursorWidth(),
+          getCursorHeight()
+        );
+      }
+    }
+  }
 }
+  
+
+// Helper function to strip HTML tags for measuring text width correctly
+function stripHtml(html) {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || div.innerText || "";
+} 
+
+export function typeLines(lines) {
+  const queue = getTypingQueue();
+  queue.push(...lines);
+  setTypingQueue(queue);
+
+  if (!getIsTyping()) {
+    setIsTyping(true);
+    typeNextLine();
+  }
+}
+
+function typeNextLine() {
+  const queue = getTypingQueue();
+
+  if (queue.length === 0) {
+    setIsTyping(false);
+    return;
+  }
+
+  setCurrentLine(queue.shift());
+  setCurrentCharIndex(0);
+
+  canvasLogBuffer.push("");
+
+  typeCharacter();
+}  
+
+function typeCharacter() {
+  const charIndex = getCurrentCharIndex();
+  const line = getCurrentLine();
+
+  if (charIndex <= line.length) {
+    canvasLogBuffer[canvasLogBuffer.length - 1] = line.substring(0, charIndex);
+
+    setCurrentCharIndex(charIndex + 1);
+
+    setTimeout(typeCharacter, getTypingSpeed());
+  } else {
+    typeNextLine();
+  }
+}
+  
 
 export function setGameState(newState) {
     console.log("Setting game state to " + newState);
