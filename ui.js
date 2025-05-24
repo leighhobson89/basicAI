@@ -29,7 +29,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setElements();
 
-  // --- Game/UI event listeners (unchanged) ---
   getElements().newGameMenuButton.addEventListener("click", () => {
     setBeginGameStatus(true);
     if (!getGameInProgress()) {
@@ -109,7 +108,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     setCanvasLogScrollOffset(newOffset);
   });
 
+  window.clearPromptHistory = () => {
+    localStorage.removeItem("promptHistory");
+    promptHistory = [];
+    promptHistoryIndex = 0;
+    console.log("Prompt history cleared.");
+  };
+
   userInput.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowUp") {
+      if (promptHistoryIndex > 0) {
+        promptHistoryIndex--;
+        userInput.value = promptHistory[promptHistoryIndex];
+      }
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      if (promptHistoryIndex < promptHistory.length - 1) {
+        promptHistoryIndex++;
+        userInput.value = promptHistory[promptHistoryIndex];
+      } else {
+        promptHistoryIndex = promptHistory.length;
+        userInput.value = "";
+      }
+      event.preventDefault();
+      return;
+    }
+    
     if (event.key === "Enter") {
       const inputText = userInput.value.trim();
       handleUserInput(inputText);
@@ -156,17 +183,23 @@ function focusInputField() {
   }
 }
 
-export function outputToCanvas(text) {
-  canvasLogBuffer.push(text);
-  if (canvasLogBuffer.length > maxLogLines) {
-    canvasLogBuffer.shift();
-  }
-}  
+export function renderString(ctx, x, y, html) {
+  let rawText;
 
-export function renderHTMLString(ctx, x, y, html) {
+  if (typeof html === "string") {
+    rawText = html;
+  } else if (html && typeof html.text === "string") {
+    rawText = html.text;
+  } else {
+    return; // nothing valid to render
+  }
+
   const tagRegex = /<\/?[^>]+>/g;
-  const parts = html.split(tagRegex);
-  const tags = html.match(tagRegex) || [];
+  const parts = rawText.split(tagRegex);
+  if (parts.length === 1 && parts[0] === "") {
+    return; // no visible text to render
+  }
+  const tags = rawText.match(tagRegex) || [];
 
   let currFont = "16px monospace";
   let currStyle = { bold: false, italic: false, color: "#0f0" };
@@ -234,18 +267,45 @@ export function disableActivateButton(button, action, activeClass) {
 }
 
 async function sendUserInputToServer(userInput) {
-  const response = await fetch("http://localhost:3000/api/gemma3", {
+  const response = await fetch("http://localhost:2500/api/gemma3", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: userInput }),
   });
   if (!response.ok) throw new Error("Network response was not ok");
   const data = await response.json();
-  return data.response;
+  return data;
 }
 
+const conversationLog = [];
+let promptHistory = JSON.parse(localStorage.getItem("promptHistory") || "[]");
+let promptHistoryIndex = promptHistory.length;
+
 async function handleUserInput(userInput) {
-  canvasLogBuffer.push(`> ${userInput}`);
+  if (userInput) {
+    promptHistory.push(userInput);
+    localStorage.setItem("promptHistory", JSON.stringify(promptHistory));
+    promptHistoryIndex = promptHistory.length;
+  }
+
+  conversationLog.push({ role: "user", text: userInput });
+  canvasLogBuffer.push({ text: `> ${userInput}`, color: "#00FF00" });
+
   const aiResponse = await sendUserInputToServer(userInput);
-  typeLines([aiResponse]);
+
+  if (Array.isArray(aiResponse) && aiResponse.length === 1) {
+    const respObj = aiResponse[0];
+    if (respObj.response1 && respObj.response2) {
+      conversationLog.push({ role: "assistant", text: respObj.response1 });
+      conversationLog.push({ role: "assistant", text: respObj.response2 });
+    } else if (respObj.response) {
+      conversationLog.push({ role: "assistant", text: respObj.response });
+    }
+  } else if (aiResponse.response) {
+    conversationLog.push({ role: "assistant", text: aiResponse.response });
+  } else if (typeof aiResponse === "string") {
+    conversationLog.push({ role: "assistant", text: aiResponse });
+  }
+
+  typeLines(aiResponse);
 }

@@ -28,7 +28,6 @@ import {
   getCursorWidth,
   getCursorHeight,
 } from "./constantsAndGlobalVars.js";
-import { outputToCanvas, renderHTMLString } from "./ui.js";
 
 //--------------------------------------------------------------------------------------------------------
 
@@ -62,10 +61,11 @@ export function startGame() {
     window.addEventListener('resize', updateCanvasSize);
 
     typeLines([
-      "Welcome to the canvas terminal!",
-      "System <b>ready</b> for <i>deployment</i>.",
-      'Error: <span style="color: red">Connection failed</span>',
-      'Info: <span style="color: yellow">Running diagnostics...</span>',
+      "Welcome to LeighPT!",
+      "What can I do for you?",
+      'If you want me to ask my friend, just write "2ai" after your prompt',
+      'If you want us to chat to each other about a topic, do "chatBot <# of exchanges> <prompt>',
+      ">",
     ]);
     
     gameLoop();
@@ -98,7 +98,6 @@ function drawCanvasLog(ctx, now) {
   const scrollOffset = getCanvasLogScrollOffset();
 
   ctx.font = "16px monospace";
-  ctx.fillStyle = "#0f0";
 
   const startLine = Math.max(
     0,
@@ -108,7 +107,12 @@ function drawCanvasLog(ctx, now) {
 
   for (let i = startLine, j = 0; i < endLine; i++, j++) {
     const y = yStart + j * lineHeight;
-    renderHTMLString(ctx, x, y, canvasLogBuffer[i]);
+
+    const lineObj = canvasLogBuffer[i];
+    if (!lineObj) continue;
+
+    ctx.fillStyle = lineObj.color || "#00ff00";
+    ctx.fillText(lineObj.text, x, y);
   }
 
   if (canvasLogBuffer.length > 0) {
@@ -127,9 +131,9 @@ function drawCanvasLog(ctx, now) {
       if (lastLineIndex >= 0 && lastLineIndex < canvasLogBuffer.length) {
         const lastLine = canvasLogBuffer[lastLineIndex];
         const y = yStart + (lastLineIndex - startLine) * lineHeight;
-        const widthBeforeCursor = ctx.measureText(stripHtml(lastLine)).width;
+        const widthBeforeCursor = ctx.measureText(lastLine.text).width;
 
-        ctx.fillStyle = "#0f0";
+        ctx.fillStyle = lastLine.color || "#0f0";
         ctx.fillRect(
           x + widthBeforeCursor,
           y - getCursorHeight() + 4,
@@ -139,25 +143,46 @@ function drawCanvasLog(ctx, now) {
       }
     }
   }
-}  
-  
-function stripHtml(html) {
-  const div = document.createElement("div");
-  div.innerHTML = html;
-  return div.textContent || div.innerText || "";
-} 
+}
 
-export function typeLines(lines) {
+
+export function typeLines(input) {
   const queue = getTypingQueue();
   const ctx = getElements().canvas.getContext("2d");
   ctx.font = "16px monospace";
-
   const maxWidth = getElements().canvas.width - 20;
 
-  lines.forEach((line) => {
-    const wrappedLines = wrapText(ctx, line, maxWidth);
-    queue.push(...wrappedLines);
-  });
+  function pushLinesWithColor(text, color) {
+    const wrappedLines = wrapText(ctx, text, maxWidth);
+    wrappedLines.forEach((line) => queue.push({ text: line, color }));
+  }
+
+  if (Array.isArray(input)) {
+    // Array of strings (each line plain)
+    input.forEach((line) => pushLinesWithColor(line, "#00FF00"));
+  } else if (typeof input === "object" && input !== null) {
+    if ("response1" in input && "response2" in input) {
+      // Two-response scenario (e.g., 2ai)
+      pushLinesWithColor(input.response1, "#FFFF00");
+      queue.push({ text: "", color: "#FFFF00" });
+      pushLinesWithColor(input.response2, "#00FFFF");
+    } else if ("response" in input) {
+      // Single-response scenario
+      pushLinesWithColor(input.response, "#FFFF00");
+    } else if ("exchangeLog" in input && Array.isArray(input.exchangeLog)) {
+      // chatBot loop scenario
+      const colors = ["#FFFF00", "#00FFFF"]; // yellow, cyan
+      input.exchangeLog.forEach((entry, index) => {
+        const color = colors[index % 2];
+        pushLinesWithColor(entry.message, color);
+        queue.push({ text: "", color }); // line spacing
+      });
+    } else {
+      console.warn("Unexpected object shape:", input);
+    }
+  } else {
+    console.warn("Unsupported input format:", input);
+  }
 
   setTypingQueue(queue);
 
@@ -168,6 +193,8 @@ export function typeLines(lines) {
 }
 
 
+
+
 function typeNextLine() {
   const queue = getTypingQueue();
 
@@ -176,20 +203,26 @@ function typeNextLine() {
     return;
   }
 
+  // Now each line is an object { text, color }
   setCurrentLine(queue.shift());
   setCurrentCharIndex(0);
 
-  canvasLogBuffer.push("");
+  canvasLogBuffer.push({ text: "", color: getCurrentLine().color });
 
   typeCharacter();
-}  
+}
 
 function typeCharacter() {
   const charIndex = getCurrentCharIndex();
-  const line = getCurrentLine();
+  const lineObj = getCurrentLine(); // { text, color }
+  const lineText = lineObj.text;
 
-  if (charIndex <= line.length) {
-    canvasLogBuffer[canvasLogBuffer.length - 1] = line.substring(0, charIndex);
+  if (charIndex <= lineText.length) {
+    // Update last line in buffer with partial text and color
+    canvasLogBuffer[canvasLogBuffer.length - 1] = {
+      text: lineText.substring(0, charIndex),
+      color: lineObj.color,
+    };
 
     setCurrentCharIndex(charIndex + 1);
 
@@ -258,17 +291,6 @@ export function setGameState(newState) {
             getElements().canvasContainer.classList.add('d-flex');
             break;
     }
-}
-
-async function queryGemma3(prompt) {
-  const response = await fetch("/api/gemma3", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
-  if (!response.ok) throw new Error("API error");
-  const data = await response.json();
-  return data.response;
 }
 
 function wrapText(ctx, text, maxWidth) {
