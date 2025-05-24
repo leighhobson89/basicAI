@@ -113,13 +113,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       event.preventDefault();
       const inputText = userInput.value.trim();
       if (inputText.length > 0) {
-        typeLines([`> ${inputText}`]); // Animate the input text
+        typeLines([`> ${inputText}`]);
+
+        const aiResponse = `You said: ${inputText}`;
+        typeLines([aiResponse]);
+
         userInput.value = "";
         setCanvasLogScrollOffset(0);
       }
     }
-  });
-  
+  });  
 
   mirror.style.font = window.getComputedStyle(input).font;
 
@@ -235,4 +238,3 @@ export function disableActivateButton(button, action, activeClass) {
             break;
     }
 }
-
