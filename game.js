@@ -63,8 +63,7 @@ export function startGame() {
     typeLines([
       "Welcome to LeighPT!",
       "What can I do for you?",
-      'If you want me to ask my friend, just write "2ai" after your prompt',
-      'If you want us to chat to each other about a topic, do "chatBot <# of exchanges> <prompt>',
+      'If you want a list of commands, type "helpMe"',
       ">",
     ]);
     
@@ -153,10 +152,16 @@ export function typeLines(input) {
   const maxWidth = getElements().canvas.width - 20;
 
   function pushLinesWithColor(text, color) {
-    const wrappedLines = wrapText(ctx, text, maxWidth);
-    wrappedLines.forEach((line) => queue.push({ text: line, color }));
-  }
+    const lines = text.split("\n");
 
+    lines.forEach((line) => {
+      const wrappedLines = wrapText(ctx, line, maxWidth);
+      wrappedLines.forEach((wrappedLine) =>
+        queue.push({ text: wrappedLine, color })
+      );
+    });
+  }
+  
   if (Array.isArray(input)) {
     // Array of strings (each line plain)
     input.forEach((line) => pushLinesWithColor(line, "#00FF00"));
@@ -191,9 +196,6 @@ export function typeLines(input) {
     typeNextLine();
   }
 }
-
-
-
 
 function typeNextLine() {
   const queue = getTypingQueue();

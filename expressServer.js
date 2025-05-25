@@ -142,7 +142,26 @@ mainApp.post("/api/generate", async (req, res) => {
       return res.status(400).json({ error: `Unknown model "${model}"` });
     }
 
-    // Shutdown logic if user requests it (optional)
+    if (userPrompt.toLowerCase() === "clearcontext") {
+      await fs.writeFile(contextFilePath, "", "utf-8");
+      console.log("Context file cleared.");
+      const clearSuccessText = `
+      Uh, Someone erased all my memory!`.trim();
+
+      return res.json({ response: clearSuccessText });
+    }
+
+    if (userPrompt.toLowerCase() === "helpme") {
+      const helpText = `
+    clearContext - Clears all stored chat context.
+    shutdown - Shuts down the server gracefully.
+    chatBot <n> <prompt> - AIs will chat to each other for "n" exchanges about your "prompt".
+    2ai - You send AI1 a prompt, and its answer is sent to AI2, which answers that.
+    `.trim();
+
+      return res.json({ response: helpText });
+    }
+
     if (userPrompt.toLowerCase().includes("shutdown")) {
       res.json({ message: "Server is shutting down..." });
       console.log("Shutdown command received. Closing servers...");
@@ -152,7 +171,6 @@ mainApp.post("/api/generate", async (req, res) => {
       return;
     }
 
-    // Support chatBot looping logic (optional)
     if (userPrompt.startsWith("chatBot")) {
       const parts = userPrompt.split(" ");
       if (parts.length < 3 || isNaN(parseInt(parts[1]))) {
@@ -177,13 +195,18 @@ mainApp.post("/api/generate", async (req, res) => {
         message = await queryModelServer(
           currentPort,
           currentModel,
-          `AI: ${message}\nAI:`
+          `${message}\n`
         );
+
+        if (currentModel === "qwen3") {
+          message = cleanQwen3Response(message);
+        }
+
         console.log(
           `[ChatBot Loop] Response from ${currentModel} (${currentPort}): ${message}`
         );
 
-        await appendToContextFile(`AI: ${message}`);
+        await appendToContextFile(`${message}`);
         exchangeLog.push({ model: currentModel, port: currentPort, message });
       }
 
@@ -204,7 +227,7 @@ mainApp.post("/api/generate", async (req, res) => {
     }
 
     // Query first model
-    const firstPrompt = contextFileContent + `\nUser: ${cleanPrompt}\nAI:`;
+    const firstPrompt = contextFileContent + `\n${cleanPrompt}\n`;
     console.log(
       `[MainAPI] Prompt sent to model ${model} (${
         model === "gemma3" ? 3500 : 3501
@@ -218,13 +241,13 @@ mainApp.post("/api/generate", async (req, res) => {
       `[MainAPI] Response from ${model} (${firstPort}): ${response1}`
     );
 
-    await appendToContextFile(`User: ${cleanPrompt}\nAI: ${response1}`);
+    await appendToContextFile(`User: ${cleanPrompt}\n${response1}`);
 
     if (isTwoAI) {
       const otherModel = model === "gemma3" ? "qwen3" : "gemma3";
       const otherPort = otherModel === "gemma3" ? 3500 : 3501;
 
-      const secondPrompt = `AI: ${response1}\nAI:`;
+      const secondPrompt = `${response1}\n`;
       console.log(
         `[MainAPI] Prompt sent to model ${otherModel} (${otherPort}):\n`,
         secondPrompt
@@ -243,7 +266,7 @@ mainApp.post("/api/generate", async (req, res) => {
         response2 = cleanQwen3Response(response2);
       }
 
-      await appendToContextFile(`AI: ${response2}`);
+      await appendToContextFile(`${response2}`);
 
       return res.json({ response1, response2 });
     } else {
