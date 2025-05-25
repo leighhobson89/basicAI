@@ -26,7 +26,6 @@ async function isModelRunning(modelName) {
       throw new Error(`Ollama list API error: ${res.statusText}`);
     }
     const data = await res.json();
-    // data is an array of running models or containers, check if modelName exists
     return data.some((item) => item.name === modelName);
   } catch (err) {
     console.error("Failed to check running models:", err.message);
@@ -62,13 +61,13 @@ async function ensureModelIsRunning(modelName) {
   return null;
 }
 
-async function queryOllama(prompt) {
+async function queryOllamaModel(modelName, prompt) {
   const response = await fetch(`${OLLAMA_API_BASE}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gemma3",
-      prompt: prompt,
+      model: modelName,
+      prompt,
       stream: false,
     }),
   });
@@ -81,40 +80,42 @@ async function queryOllama(prompt) {
   return data.response;
 }
 
-function createGemma3Server(port) {
+// Create a mini express server to proxy queries to a model's ollama run instance on given port
+function createModelServer(modelName, port) {
   const app = express();
   app.use(cors());
   app.use(express.json());
 
-  app.post("/api/gemma3", async (req, res) => {
+  app.post(`/api/${modelName}`, async (req, res) => {
     const prompt = req.body.prompt;
     if (!prompt) {
       return res.status(400).json({ error: "Missing prompt" });
     }
 
     try {
-      const output = await queryOllama(prompt);
+      const output = await queryOllamaModel(modelName, prompt);
       res.json({ response: output.trim() });
     } catch (err) {
-      console.error("Ollama API call failed:", err.message);
+      console.error(`Ollama API call failed for ${modelName}:`, err.message);
       res.status(500).json({ error: "Failed to get response from model" });
     }
   });
 
   app.listen(port, () => {
-    console.log(`Gemma3 API listening at http://127.0.0.1:${port}`);
+    console.log(`${modelName} API listening at http://127.0.0.1:${port}`);
   });
 }
 
-createGemma3Server(3500);
-createGemma3Server(3501);
+// Start the model servers with appropriate models and ports
+createModelServer("gemma3", 3500);
+createModelServer("qwen3", 3501);
 
 const mainApp = express();
 mainApp.use(cors());
 mainApp.use(express.json());
 
-async function queryServer(port, prompt) {
-  const response = await fetch(`http://127.0.0.1:${port}/api/gemma3`, {
+async function queryModelServer(port, modelName, prompt) {
+  const response = await fetch(`http://127.0.0.1:${port}/api/${modelName}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt }),
@@ -128,26 +129,30 @@ async function queryServer(port, prompt) {
   return data.response;
 }
 
-mainApp.post("/api/gemma3", async (req, res) => {
+// Main router endpoint: accepts JSON { model: "gemma3"|"qwen3", prompt: string }
+mainApp.post("/api/generate", async (req, res) => {
   try {
-    let userPrompt = req.body.prompt;
-    if (!userPrompt) {
-      return res.status(400).json({ error: "Missing prompt" });
+    const { model, prompt: userPrompt } = req.body;
+
+    if (!model || !userPrompt) {
+      return res.status(400).json({ error: "Missing model or prompt" });
     }
 
-    // Shutdown logic
+    if (!["gemma3", "qwen3"].includes(model)) {
+      return res.status(400).json({ error: `Unknown model "${model}"` });
+    }
+
+    // Shutdown logic if user requests it (optional)
     if (userPrompt.toLowerCase().includes("shutdown")) {
       res.json({ message: "Server is shutting down..." });
       console.log("Shutdown command received. Closing servers...");
-
-      // Wait a moment so response is sent, then exit
       setTimeout(() => {
         process.exit(0);
       }, 1000);
-
       return;
     }
 
+    // Support chatBot looping logic (optional)
     if (userPrompt.startsWith("chatBot")) {
       const parts = userPrompt.split(" ");
       if (parts.length < 3 || isNaN(parseInt(parts[1]))) {
@@ -161,19 +166,31 @@ mainApp.post("/api/gemma3", async (req, res) => {
       const exchangeLog = [];
 
       for (let i = 0; i < loopCount; i++) {
-        const port = i % 2 === 0 ? 3500 : 3501;
-        console.log(`[ChatBot Loop] Sending to ${port}: ${message}`);
+        // Alternate between gemma3 and qwen3
+        const currentModel = i % 2 === 0 ? "gemma3" : "qwen3";
+        const currentPort = currentModel === "gemma3" ? 3500 : 3501;
 
-        message = await queryServer(port, `AI: ${message}\nAI:`);
-        console.log(`[ChatBot Loop] Response from ${port}: ${message}`);
+        console.log(
+          `[ChatBot Loop] Sending to ${currentModel} (${currentPort}): ${message}`
+        );
+
+        message = await queryModelServer(
+          currentPort,
+          currentModel,
+          `AI: ${message}\nAI:`
+        );
+        console.log(
+          `[ChatBot Loop] Response from ${currentModel} (${currentPort}): ${message}`
+        );
 
         await appendToContextFile(`AI: ${message}`);
-        exchangeLog.push({ port, message });
+        exchangeLog.push({ model: currentModel, port: currentPort, message });
       }
 
       return res.json({ finalResponse: message, exchangeLog });
     }
 
+    // Support 2AI flag to query both models
     const isTwoAI = userPrompt.includes("2ai");
     const cleanPrompt = userPrompt.replace("2ai", "").trim();
 
@@ -186,20 +203,45 @@ mainApp.post("/api/gemma3", async (req, res) => {
       );
     }
 
-    const prompt1 = contextFileContent + `\nUser: ${cleanPrompt}\nAI:`;
-    console.log("[MainAPI] Full prompt sent to model (3500):\n", prompt1);
+    // Query first model
+    const firstPrompt = contextFileContent + `\nUser: ${cleanPrompt}\nAI:`;
+    console.log(
+      `[MainAPI] Prompt sent to model ${model} (${
+        model === "gemma3" ? 3500 : 3501
+      }):\n`,
+      firstPrompt
+    );
 
-    const response1 = await queryServer(3500, prompt1);
-    console.log(`[MainAPI] Response from 3500: ${response1}`);
+    const firstPort = model === "gemma3" ? 3500 : 3501;
+    const response1 = await queryModelServer(firstPort, model, firstPrompt);
+    console.log(
+      `[MainAPI] Response from ${model} (${firstPort}): ${response1}`
+    );
 
     await appendToContextFile(`User: ${cleanPrompt}\nAI: ${response1}`);
 
     if (isTwoAI) {
-      const prompt2 = `AI: ${response1}\nAI:`;
-      console.log("[MainAPI] Prompt sent to model (3501):\n", prompt2);
+      const otherModel = model === "gemma3" ? "qwen3" : "gemma3";
+      const otherPort = otherModel === "gemma3" ? 3500 : 3501;
 
-      const response2 = await queryServer(3501, prompt2);
-      console.log(`[MainAPI] Response from 3501: ${response2}`);
+      const secondPrompt = `AI: ${response1}\nAI:`;
+      console.log(
+        `[MainAPI] Prompt sent to model ${otherModel} (${otherPort}):\n`,
+        secondPrompt
+      );
+
+      let response2 = await queryModelServer(
+        otherPort,
+        otherModel,
+        secondPrompt
+      );
+      console.log(
+        `[MainAPI] Response from ${otherModel} (${otherPort}): ${response2}`
+      );
+
+      if (otherModel === "qwen3") {
+        response2 = cleanQwen3Response(response2);
+      }
 
       await appendToContextFile(`AI: ${response2}`);
 
@@ -216,10 +258,26 @@ mainApp.post("/api/gemma3", async (req, res) => {
 const mainPort = 2500;
 
 (async () => {
-  // Ensure gemma3 model is running before starting servers
+  // Ensure both models are running before starting main API
   await ensureModelIsRunning("gemma3");
+  await ensureModelIsRunning("qwen3");
 
   mainApp.listen(mainPort, () => {
     console.log(`Main API router listening at http://127.0.0.1:${mainPort}`);
   });
 })();
+
+function cleanQwen3Response(text) {
+  const thinkTagRegex = /<think>[\s\S]*?<\/think>/gi;
+
+  const matches = [...text.matchAll(thinkTagRegex)];
+
+  if (matches.length === 0) {
+    return text;
+  }
+
+  const lastThink = matches[matches.length - 1];
+  const lastThinkEndIndex = lastThink.index + lastThink[0].length;
+
+  return text.slice(lastThinkEndIndex).trim();
+}

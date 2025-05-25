@@ -266,14 +266,44 @@ export function disableActivateButton(button, action, activeClass) {
     }
 }
 
-async function sendUserInputToServer(userInput) {
-  const response = await fetch("http://localhost:2500/api/gemma3", {
+const mainPort = 2500;
+
+function cleanQwen3Response(text) {
+  const thinkTagRegex = /<think>[\s\S]*?<\/think>/gi;
+
+  const matches = [...text.matchAll(thinkTagRegex)];
+
+  if (matches.length === 0) {
+    return text;
+  }
+
+  const lastThink = matches[matches.length - 1];
+  const lastThinkEndIndex = lastThink.index + lastThink[0].length;
+
+  return text.slice(lastThinkEndIndex).trim();
+}
+
+async function sendUserInputToServer(userInput, model = "gemma3") {
+  const response = await fetch(`http://localhost:${mainPort}/api/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: userInput }),
+    body: JSON.stringify({ model, prompt: userInput }),
   });
   if (!response.ok) throw new Error("Network response was not ok");
   const data = await response.json();
+
+  if (model === "qwen3") {
+    if (data.response) {
+      data.response = cleanQwen3Response(data.response);
+    }
+    if (data.response1) {
+      data.response1 = cleanQwen3Response(data.response1);
+    }
+    if (data.response2) {
+      data.response2 = cleanQwen3Response(data.response2);
+    }
+  }
+
   return data;
 }
 
